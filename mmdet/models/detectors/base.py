@@ -17,7 +17,6 @@ import pdb
 from collections import OrderedDict
 from mmdet.models.losses.ai28.additional_loss import fpn_loss
 
-# use_wandb = True # False True
 
 def images_to_levels(target, num_levels):
     """Convert targets by image to targets by feature level.
@@ -371,7 +370,8 @@ class BaseDetector(BaseModule, metaclass=ABCMeta):
         pdb.set_trace()
         return plt
 
-
+    # Modifications:
+    # Copyright (c) 2022 Urban Robotics Lab. @ KAIST. All rights reserved.
     def train_step(self, data, optimizer):
         """The iteration step during training.
 
