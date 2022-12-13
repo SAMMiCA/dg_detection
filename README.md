@@ -100,6 +100,16 @@ The model can be tested in the same way as below.
 
 **NOTE:** Before running, make sure you have chosen the correct configuration file.
 
+## Comparison
+
+Results on CityScapes with Faster-RCNN:
+
+|           | Detector    | Arch     | RPN Loss                           | RoI Loss                                 | Clean mAP(%) | Corruption mPC(%) |
+|-----------|-------------|----------|------------------------------------|------------------------------------------|--------------|-------------------|
+| Base      | Faster-RCNN | ResNet50 | CrossEntropy + L1loss              | CrossEntropy + SmoothL1loss              | 40.6         | 11.0              |
+| w/ AugMix | Faster-RCNN | ResNet50 | CrossEntropy + L1loss              | CrossEntropy + SmoothL1loss              | 42.8         | 16.0              |
+| DGDet     | Faster-RCNN | ResNet50 | CrossEntropyPlus(jsdv1.3) + L1loss | CrossEntropyPlus(jsdv1.3) + SmoothL1loss | 40.2         | 20.9              |
+
 ## Citation
 
 ```
