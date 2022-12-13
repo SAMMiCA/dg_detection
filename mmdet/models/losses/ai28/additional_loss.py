@@ -1,4 +1,7 @@
 # Copyright (c) OpenMMLab. All rights reserved.
+
+# Modifications:
+# Copyright (c) 2022 Urban Robotics Lab. @ KAIST. All rights reserved.
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
