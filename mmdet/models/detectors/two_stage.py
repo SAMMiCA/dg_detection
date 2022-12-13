@@ -1,10 +1,12 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import warnings
 
+import numpy as np
 import torch
 
 from ..builder import DETECTORS, build_backbone, build_head, build_neck
 from .base import BaseDetector
+from mmdet.utils.visualize import visualize_score_distribution, visualize_score_density, visualize_image, get_file_name
 
 
 @DETECTORS.register_module()
@@ -170,18 +172,49 @@ class TwoStageDetector(BaseDetector):
         return await self.roi_head.async_simple_test(
             x, proposal_list, img_meta, rescale=rescale)
 
-    def simple_test(self, img, img_metas, proposals=None, rescale=False):
+    def simple_test(self, img, img_metas, proposals=None, rescale=False, **kwargs):
         """Test without augmentation."""
+        debug_cfg = kwargs['debug_cfg'] if 'debug_cfg' in kwargs else None
 
         assert self.with_bbox, 'Bbox head must be implemented.'
         x = self.extract_feat(img)
+        # hook the fpn features
+        self.fpn_features = x
         if proposals is None:
             proposal_list = self.rpn_head.simple_test_rpn(x, img_metas)
         else:
             proposal_list = proposals
+        if debug_cfg:
+            if 'given_proposal_list' in debug_cfg:
+                if debug_cfg['given_proposal_list']:
+                    out_dir = debug_cfg['out_dir']
+                    out_dir = out_dir.replace('given', 'augmix.wotrans_plus_rpn.tailv2.1.none_roi.none.none__e2_lw.12')
+                    out_dir = out_dir.replace('gaussian_noise/1', 'gaussian_noise/0')
+                    out_dir = out_dir.replace('gaussian_noise/2', 'gaussian_noise/0')
+                    name = f"{img_metas[0]['ori_filename'].split('.png')[0]}_proposal_list"
+                    proposal_list = torch.load(f"{out_dir}/{name}.pt")
+            if 'given_proposal_list2' in debug_cfg:
+                if debug_cfg['given_proposal_list2']:
+                    out_dir = debug_cfg['out_dir']
+                    out_dir = out_dir.replace('given2', 'augmix.wotrans_plus_rpn.tailv2.1.none_roi.none.none__e2_lw.12')
+                    out_dir = out_dir.replace('gaussian_noise/0', 'gaussian_noise/2')
+                    name = f"{img_metas[0]['ori_filename'].split('.png')[0]}_proposal_list"
+                    proposal_list = torch.load(f"{out_dir}/{name}.pt")
 
-        return self.roi_head.simple_test(
-            x, proposal_list, img_metas, rescale=rescale)
+
+        bbox_results = self.roi_head.simple_test(x, proposal_list, img_metas, rescale=rescale)
+
+        if debug_cfg:
+            if debug_cfg and ('proposal_list' in debug_cfg['save_list']):
+                fn = get_file_name(debug_cfg, 'proposal_list', extension='pt', img_meta=img_metas[0])
+                torch.save(proposal_list, fn)
+            visualize_image(img_meta=img_metas[0], name='original_image', debug_cfg=debug_cfg)
+            visualize_score_distribution(proposal_list[0][:, 4], name='proposal_list_score_distribution', bins=50, img_meta=img_metas[0], debug_cfg=debug_cfg)
+            visualize_score_density(proposal_list[0], name='proposal_list_score_density', img_meta=img_metas[0], topk=300, debug_cfg=debug_cfg)
+            visualize_score_distribution(np.concatenate(bbox_results[0], 0)[:, 4], name='bbox_results_score_distribution', bins=50, img_meta=img_metas[0], debug_cfg=debug_cfg)
+            visualize_score_density(bbox_results[0], name='bbox_results_score_density', img_meta=img_metas[0], debug_cfg=debug_cfg)
+
+        return bbox_results
 
     def aug_test(self, imgs, img_metas, rescale=False):
         """Test with augmentations.

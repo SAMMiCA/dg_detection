@@ -146,26 +146,17 @@ def sharpness(pil_img, level, _):
     return ImageEnhance.Sharpness(pil_img).enhance(level)
 
 
-augmentations = [
-    autocontrast, equalize, posterize, rotate, solarize, shear_x, shear_y,
-    translate_x, translate_y
-]
 
-augmentations_all = [
-    autocontrast, equalize, posterize, rotate, solarize, shear_x, shear_y,
-    translate_x, translate_y, color, contrast, brightness, sharpness
-]
 
 """
 Augmix with pillow
 """
 @PIPELINES.register_module()
 class AugMix:
-    def __init__(self, mean, std, to_rgb=True, no_jsd=False):
+    def __init__(self, mean, std, aug_list='augmentations', to_rgb=True, no_jsd=False):
         self.mean = np.array(mean, dtype=np.float32)
         self.std = np.array(std, dtype=np.float32)
         self.to_rgb = to_rgb
-        self.aug_list = augmentations
 
         self.mixture_width = 3
         self.mixture_depth = -1
@@ -175,19 +166,63 @@ class AugMix:
 
         self.no_jsd = no_jsd
 
+        augmentations = [
+            autocontrast, equalize, posterize, rotate, solarize, shear_x, shear_y,
+            translate_x, translate_y
+        ]
+        augmentations_all = [
+            autocontrast, equalize, posterize, rotate, solarize, shear_x, shear_y,
+            translate_x, translate_y, color, contrast, brightness, sharpness
+        ]
+        augmentations_without_obj_translation = [
+            autocontrast, equalize, posterize, solarize,
+            color, contrast, brightness, sharpness
+        ]
+        if (aug_list == 'augmentations_without_obj_translation') or (aug_list == 'wotrans'):
+            self.aug_list = augmentations_without_obj_translation
+        elif aug_list == 'augmentations':
+            self.aug_list = augmentations
+        elif (aug_list == 'augmentations_all') or (aug_list == 'all'):
+            self.aug_list = augmentations_all
+        elif aug_list == 'copy':
+            self.aug_list = aug_list
+        else: # default = 'augmentations'
+            self.aug_list = augmentations
+
 
     def __call__(self, results):
 
         if self.no_jsd:
-            return self.aug(results)
-        else:
-            results_2 = self.aug(results)
-            results['img2'] = results_2['img']
-            results_3 = self.aug(results)
-            results['img3'] = results_3['img']
+            img = results['img'].copy()
+            return self.aug(img)
+        elif self.aug_list == 'copy':
+            img = results['img'].copy()
+            results['img2'] = img.copy()
+            results['img3'] = img.copy()
             results['img_fields'] = ['img', 'img2', 'img3']
-            # for key in results.get('img_fields', ['img']):
-            #     print("key: ", key)
+            return results
+        else:
+            img = results['img'].copy()
+            results['img2'] = self.aug(img)
+            results['img3'] = self.aug(img)
+            results['img_fields'] = ['img', 'img2', 'img3']
+
+            # ''' Save the result '''
+            # img_orig = Image.fromarray(results['img'])
+            # img_orig.save('/ws/external/data/augmix_orig.png')
+            # # img_augmix1 = torch.tensor(results['img2'].clone().detach() * 255, dtype=torch.uint8).numpy()
+            # img_augmix1 = results['img2']
+            # img_augmix1 = torch.tensor(img_augmix1, dtype=torch.uint8)
+            # img_augmix1 = img_augmix1.numpy()
+            # img_augmix1= Image.fromarray(img_augmix1)
+            # img_augmix1.save('/ws/external/data/augmix_1.png')
+            #
+            # img_augmix2 = results['img3']
+            # img_augmix2 = torch.tensor(img_augmix2, dtype=torch.uint8)
+            # img_augmix2 = img_augmix2.numpy()
+            # img_augmix2 = Image.fromarray(img_augmix2)
+            # img_augmix2.save('/ws/external/data/augmix_2.png')
+
             return results
         # return self.aug(results)
 
@@ -196,32 +231,26 @@ class AugMix:
         repr_str += f'(mean={self.mean}, std={self.std}, to_rgb={self.to_rgb})'
         return repr_str
 
-    def aug(self, results):
+    def aug(self, img):
         ws = np.float32(
             np.random.dirichlet([self.aug_prob_coeff] * self.mixture_width))
         m = np.float32(np.random.beta(self.aug_prob_coeff, self.aug_prob_coeff))
-        IMAGE_HEIGHT, IMAGE_WIDTH, _ = results['img_shape']
+        IMAGE_HEIGHT, IMAGE_WIDTH, _ = img.shape
         img_size = (IMAGE_WIDTH, IMAGE_HEIGHT)
 
-        for key in results.get('img_fields', ['img']):
-            mix = np.zeros_like(results[key], dtype=np.float32)
-            for i in range(self.mixture_width):
-                image_aug = results[key].copy()
-                image_aug = Image.fromarray(image_aug, "RGB")
-                depth = self.mixture_depth if self.mixture_depth > 0 else np.random.randint(1, 4)
-                for _ in range(depth):
-                    op = np.random.choice(self.aug_list)
-                    image_aug = op(image_aug, self.aug_severity, img_size)
-                # Preprocessing commutes since all coefficients are convex
-                image_aug = np.asarray(image_aug, dtype=np.float32)
-                mix += ws[i] * image_aug
-            mixed = (1 - m) * results[key] + m * mix
-            results[key] = mixed
-
-        results['img_norm_cfg'] = dict(
-            mean=self.mean, std=self.std, to_rgb=self.to_rgb)
-
-        return results
+        # image_aug = img.copy()
+        mix = np.zeros_like(img.copy(), dtype=np.float32)
+        for i in range(self.mixture_width):
+            image_aug = Image.fromarray(img.copy(), "RGB")
+            depth = self.mixture_depth if self.mixture_depth > 0 else np.random.randint(1, 4)
+            for _ in range(depth):
+                op = np.random.choice(self.aug_list)
+                image_aug = op(image_aug, self.aug_severity, img_size)
+            # Preprocessing commutes since all coefficients are convex
+            image_aug = np.asarray(image_aug, dtype=np.float32)
+            mix += ws[i] * image_aug
+        mixed = (1 - m) * img + m * mix
+        return mixed
 
 # """
 # augmix with mmdetection

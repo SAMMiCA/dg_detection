@@ -286,7 +286,7 @@ class BBoxHead(BaseModule):
             bg_class_ind = self.num_classes
             # 0~self.num_classes-1 are FG, self.num_classes is BG
             pos_inds = (labels >= 0) & (labels < bg_class_ind)
-            pos_inds[int(pos_inds.size()[0]/3):] = False
+
             # do not perform bounding box regression for BG anymore.
             if pos_inds.any():
                 if self.reg_decoded_bbox:
@@ -311,6 +311,14 @@ class BBoxHead(BaseModule):
                     reduction_override=reduction_override)
             else:
                 losses['loss_bbox'] = bbox_pred[pos_inds].sum()
+
+        if (cls_score is not None) and (bbox_pred is not None):
+            # hook the roi_head targets
+            self.roi_targets = (labels,
+                                label_weights,
+                                bbox_targets,
+                                bbox_weights)
+
         return losses
 
     @force_fp32(apply_to=('cls_score', 'bbox_pred'))

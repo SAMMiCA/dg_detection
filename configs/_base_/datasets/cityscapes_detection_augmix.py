@@ -11,7 +11,7 @@ train_pipeline = [
         type='Resize', img_scale=[(2048, 800), (2048, 1024)], keep_ratio=True),
     dict(type='RandomFlip', flip_ratio=0.5),
     ###Insert AugMix###
-    dict(type='AugMix', no_jsd=False, **img_norm_cfg),
+    dict(type='AugMix', no_jsd=False, aug_list='augmentations', **img_norm_cfg),
     dict(type='Normalize', **img_norm_cfg),
     dict(type='Pad', size_divisor=32),
     dict(type='DefaultFormatBundle'),
@@ -56,10 +56,4 @@ data = dict(
                  'annotations/instancesonly_filtered_gtFine_val.json',
         img_prefix=data_root + 'leftImg8bit/val/',
         pipeline=test_pipeline))
-    # test=dict(
-    #     type=dataset_type,
-    #     ann_file=data_root +
-    #     'annotations/instancesonly_filtered_gtFine_test.json',
-    #     img_prefix=data_root + 'leftImg8bit/test/',
-    #     pipeline=test_pipeline))
 evaluation = dict(interval=1, metric='bbox')

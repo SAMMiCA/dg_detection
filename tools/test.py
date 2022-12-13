@@ -13,7 +13,7 @@ from mmcv.parallel import MMDataParallel, MMDistributedDataParallel
 from mmcv.runner import (get_dist_info, init_dist, load_checkpoint,
                          wrap_fp16_model)
 
-from mmdet.apis import multi_gpu_test, single_gpu_test
+from mmdet.apis import multi_gpu_test, single_gpu_test, single_gpu_test_fpn
 from mmdet.datasets import (build_dataloader, build_dataset,
                             replace_ImageToTensor)
 from mmdet.models import build_detector
@@ -213,8 +213,12 @@ def main():
 
     if not distributed:
         model = MMDataParallel(model, device_ids=cfg.gpu_ids)
-        outputs = single_gpu_test(model, data_loader, args.show, args.show_dir,
-                                  args.show_score_thr)
+        if 'demo' in cfg.data.test.img_prefix:
+            outputs = single_gpu_test_fpn(model, data_loader, args.show, args.show_dir,
+                                          args.show_score_thr)
+        else:
+            outputs = single_gpu_test(model, data_loader, args.show, args.show_dir,
+                                      args.show_score_thr)
     else:
         model = MMDistributedDataParallel(
             model.cuda(),

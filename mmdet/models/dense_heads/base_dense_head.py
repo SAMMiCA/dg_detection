@@ -8,7 +8,6 @@ from mmcv.runner import BaseModule, force_fp32
 
 from mmdet.core.utils import filter_scores_and_topk, select_single_mlvl
 
-
 class BaseDenseHead(BaseModule, metaclass=ABCMeta):
     """Base class for DenseHeads."""
 
@@ -328,11 +327,13 @@ class BaseDenseHead(BaseModule, metaclass=ABCMeta):
                 proposal_list (list[Tensor]): Proposals of each image.
         """
         outs = self(x)
+
         if gt_labels is None:
             loss_inputs = outs + (gt_bboxes, img_metas)
         else:
             loss_inputs = outs + (gt_bboxes, gt_labels, img_metas)
         losses = self.loss(*loss_inputs, gt_bboxes_ignore=gt_bboxes_ignore)
+
         if proposal_cfg is None:
             return losses
         else:

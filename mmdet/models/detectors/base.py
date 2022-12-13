@@ -11,7 +11,28 @@ from mmcv.runner import BaseModule, auto_fp16
 
 from mmdet.core.visualization import imshow_det_bboxes
 
-import wandb
+# import wandb
+import matplotlib.pyplot as plt
+import os
+import pdb
+from collections import OrderedDict
+from mmdet.models.losses.ai28.additional_loss import fpn_loss
+
+
+def images_to_levels(target, num_levels):
+    """Convert targets by image to targets by feature level.
+
+    [target_img0, target_img1] -> [target_level0, target_level1, ...]
+    """
+    target = torch.stack(target, 0)
+    level_targets = []
+    start = 0
+    for n in num_levels:
+        end = start + n
+        # level_targets.append(target[:, start:end].squeeze(0))
+        level_targets.append(target[:, start:end])
+        start = end
+    return level_targets
 
 class BaseDetector(BaseModule, metaclass=ABCMeta):
     """Base class for detectors."""
@@ -19,7 +40,12 @@ class BaseDetector(BaseModule, metaclass=ABCMeta):
     def __init__(self, init_cfg=None):
         super(BaseDetector, self).__init__(init_cfg)
         self.fp16_enabled = False
-        self.features = dict()
+        self.features = dict() # self.features are values of hook_layer_list
+        self.wandb_data = dict()
+        self.wandb_features=dict() # self.wandb_features has values of wandb.layer_list, accuracy, and values
+        self.index = 0 # check current iteration for save log image
+        self.loss_type_list = dict()
+
 
     @property
     def with_neck(self):
@@ -221,53 +247,131 @@ class BaseDetector(BaseModule, metaclass=ABCMeta):
 
         return loss, log_vars
 
-    def hook_multi_layer(self, layer_list):
-        for layer_name in layer_list:
-            self.hook_layer(layer_name)
+    def save_the_result_img(self, data):
+        cls_scores_all = self.features['rpn_head.rpn_cls']  # {list:5}  (3, 3, H', W')
 
-    def hook_layer(self, selected_layer):
-        def hook_function(module, grad_in, grad_out):
-            # Gets output of the selected layer
-            self.features[selected_layer] = grad_out
+        # Get gt_scores
+        featmap_sizes = [featmap.size()[-2:] for featmap in cls_scores_all]
+        anchor_list, valid_flag_list = self.rpn_head.get_anchors(
+            featmap_sizes, data['img_metas'])
+        label_channels = 1
+        cls_reg_targets = self.rpn_head.get_targets(
+            anchor_list,
+            valid_flag_list,
+            data['gt_bboxes'],
+            data['img_metas'],
+            # gt_bboxes_ignore_list=gt_bboxes_ignore,
+            gt_labels_list=data['gt_labels'],
+            label_channels=label_channels)
+        del anchor_list, valid_flag_list
+        # edited by dnwn24
+        labels_flatten, labels_flatten_weight = cls_reg_targets[0], cls_reg_targets[1] # {list:5}  (num_types, H' * W' * num_priors)
+        labels_flatten = cls_reg_targets[0]
 
-        # Hook the selected layer
-        for n, m in self.named_modules():
-            if n == str(selected_layer):
-                m.register_forward_hook(hook_function)
+        num_priors = 3
+        num_type = data['img'].size()[0]
+        num_lev = 5
 
-        # # Hook the selected layer
-        # for n, m in self.named_modules():
-        #     if n in selected_layer:
-        #         m.register_forward_hook(hook_function)
+        # print(labels_flatten)
+        labels_all = []
+        for i in range(5):
+            label = labels_flatten[i] # (num_types, H' * W' * num_priors)
+            label = label.reshape(num_type, featmap_sizes[i][0], featmap_sizes[i][1], -1).contiguous()  # (num_types, H', W', num_priors)
+            # edited by dnwn24
+            label_weight = labels_flatten_weight[i]
+            label_weight = label_weight.reshape(num_type, featmap_sizes[i][0], featmap_sizes[i][1], -1).contiguous()
+            label = torch.ones_like(label) - label
+            label = label.type(torch.cuda.FloatTensor)
+            label = torch.ones_like(label) - label
+            label *= label_weight
+            label = label.permute(0, 3, 1, 2).contiguous()  # (num_types, num_priors, H', W')
+            labels_all.append(label)
+        del featmap_sizes, cls_reg_targets, labels_flatten, label
+        # labels_all : {list:5}  (num_types, num_priors, H', W')
 
-    def compute_jsd_loss(self, layer_list, batch_size):
-        # logits_clean, logits_aug1, logits_aug2 = torch.split(self.features[layer_name], 1)
-        jsd_loss = 0
-        for layer_name in layer_list:
-            logits_clean, logits_aug1, logits_aug2 = torch.chunk(self.features[layer_name], 3)
-            p_clean, p_aug1, p_aug2 = F.softmax(logits_clean, dim=1), F.softmax(logits_aug1, dim=1), F.softmax(logits_aug2, dim=1)
+        # Let's visualize
+        H, W = int(cls_scores_all[0].size()[2]), int(cls_scores_all[0].size()[3])
+        for i in range(1, 5):
+            cls_scores_all[i] = F.interpolate(cls_scores_all[i], size=(H, W), mode='nearest')
+            labels_all[i] = F.interpolate(labels_all[i].type(torch.cuda.FloatTensor), size=(H, W), mode='nearest') # labels_all : (num_types, num_priors, H, W)
+        cls_scores_all = torch.stack([cls_scores for cls_scores in cls_scores_all], dim=0)  # (num_lev, num_type, num_priors, H, W)
+        cls_scores_all = cls_scores_all.permute(2, 1, 0, 3, 4).contiguous()   # (num_priors, num_type, num_lev, H, W)
+        labels_all = torch.stack([labels for labels in labels_all], dim=0)                  # (num_lev, num_type, num_priors, H, W)
+        labels_all = labels_all.permute(2, 1, 0, 3, 4).contiguous()   # (num_priors, num_type, num_lev, H, W)
 
-            # expand dim of roi_head.bbox_head.fc_cls and fc_reg
-            if len(p_clean.size()) == 2:
-                p_clean, p_aug1, p_aug2 = p_clean.reshape(batch_size, p_clean.size()[-2], p_clean.size()[-1]),\
-                                          p_aug1.reshape(batch_size, p_aug1.size()[-2], p_aug1.size()[-1]),\
-                                          p_aug2.reshape(batch_size, p_aug2.size()[-2], p_aug2.size()[-1])
+        num_priors = 3
+        num_type = data['img'].size()[0]
+        num_lev = 5
+        plt.figure(figsize=(5 * (num_type + 1), 4 * num_priors))
+        for p in range(num_priors):         # [0, 1, 2]
+            labels = labels_all[p]          # (num_type, num_lev, H, W)
+            # if torch.all(torch.all(torch.all(torch.eq(labels[0], labels[1]), dim=0), dim=0), dim=0):  # if equal
+            #     print('Right!')
+            # if torch.all(torch.all(torch.all(torch.eq(labels[0], labels[1]), dim=1), dim=0), dim=0):  # if equal
+            #     print('Right!')
 
-            # Clamp mixture distribution to avoid exploding KL divergence
-            p_mixture = torch.clamp((p_clean + p_aug1 + p_aug2) / 3., 1e-7, 1).log()
-            jsd_loss += (F.kl_div(p_mixture, p_clean, reduction='batchmean') +
-                         F.kl_div(p_mixture, p_aug1, reduction='batchmean') +
-                         F.kl_div(p_mixture, p_aug2, reduction='batchmean')) / 3.
-            wandb.log({"p_clean(" + layer_name + ")": p_clean})
-            wandb.log({"p_aug1(" + layer_name + ")": p_aug1})
-            wandb.log({"p_aug2(" + layer_name + ")": p_aug2})
-            wandb.log({"p_mixture(" + layer_name + ")": p_mixture})
-            wandb.log({"jsd_loss(" + layer_name + ")": jsd_loss})
-            jsd_loss = torch.clamp(jsd_loss, 0)
-        wandb.log({"jsd_loss": jsd_loss})
-        return jsd_loss
+            label = labels[0]  # (num_lev, H, W)
+            # label = torch.clamp(label.sum(axis=0) / num_lev, min=0)  # (H,W), range=[0,1]
+            label = label.sum(axis=0) / num_lev  # (H,W), range=[0,1]
+            label = label.to('cpu').detach().numpy()
+            #
+            label_min, label_max = np.min(label), np.max(label)
+            if not label_max==label_min:
+                label = (label-label_min)/(label_max-label_min)
+            #
+            label = (label * 255).astype(np.uint8)
+            plt.subplot(num_priors, num_type + 1, p * (num_type + 1) + 1)
+            plt.imshow(label, interpolation='nearest')
+            plt.axis("off")
 
+            cls_scores = cls_scores_all[p]  # (num_type, num_lev, H, W)
+            for t in range(num_type):        # [clean, aug1, aug2]
+                cls_score = cls_scores[t]    # (num_lev, H, W)
+                cls_score = cls_score.sum(axis=0) / num_lev  # (H,W), range=[0,1]
+                cls_score = cls_score.to('cpu').detach().numpy()
+                # normalize
+                cls_score_min, cls_score_max = np.min(cls_score), np.max(cls_score)
+                if not cls_score_min == cls_score_max:
+                    cls_score = (cls_score - cls_score_min)/(cls_score_max-cls_score_min)
+                cls_score = (cls_score*255).astype(np.uint8)
 
+                plt.subplot(num_priors, num_type+1, p * (num_type+1) + t + 2)
+                plt.imshow(cls_score, interpolation='nearest')
+                plt.axis("off")
+
+        return plt
+
+    def save_the_fpn_img(self):
+        fpn_features = {k: v[0].detach().cpu() for k, v in self.features.items() if 'neck.fpn' in k}
+        fpn_level = len(fpn_features)
+        fpn_sizes = {k: v.size()[:] for k, v in fpn_features.items()}
+        B, C, H, W = fpn_sizes[list(fpn_sizes.keys())[0]]
+        plt.figure(figsize=(fpn_level, B))
+        i = 1
+        for key, feats in fpn_features.items():
+            # feats: [B, C, H, W], single level features
+            if B > 1:
+                with torch.no_grad():
+                    loss = F.mse_loss(feats[1], feats[0], reduction='mean')
+                    self.wandb_features[key + ".p_aug1.mse_loss"] = loss
+                    loss = F.mse_loss(feats[2], feats[0], reduction='mean')
+                    self.wandb_features[key + ".p_aug2.mse_loss"] = loss
+            # plt show
+            feats_mean = feats.mean(dim=1, keepdim=True)
+            feats_mean_inp = F.interpolate(feats_mean, size=(H, W), mode='nearest')
+            for feat_mean_inp in feats_mean_inp:
+                feat_mean_inp = torch.squeeze(feat_mean_inp)
+                feat_mean_inp = feat_mean_inp.detach().cpu().numpy()
+                plt.subplot(fpn_level, B, i)
+                plt.imshow(feat_mean_inp, interpolation='bilinear')
+                plt.axis("off")
+                i += 1
+        # plt.savefig("/ws/data/debug_test/test.jpg")
+
+        return plt
+
+    # Modifications:
+    # Copyright (c) 2022 Urban Robotics Lab. @ KAIST. All rights reserved.
     def train_step(self, data, optimizer):
         """The iteration step during training.
 
@@ -295,7 +399,13 @@ class BaseDetector(BaseModule, metaclass=ABCMeta):
                   DDP, it means the batch size on each GPU), which is used for
                   averaging the logs.
         """
-        if 'img2' in list(data.keys()):
+        self.features.clear()
+        self.wandb_features.clear()
+
+        if 'img2' in list(data.keys()) or 'img3' in list(data.keys()):
+            # settings
+            self.wandb_data = data
+
             # concatenate the original image and augmix images.
             batch_size = data['img'].size()[0]
             data['img'] = torch.cat((data['img'], data['img2'], data['img3']), dim=0)
@@ -307,18 +417,49 @@ class BaseDetector(BaseModule, metaclass=ABCMeta):
             self.hook_multi_layer(self.train_cfg.augmix.layer_list)
 
             losses = self(**data)
-            jsd_loss = self.compute_jsd_loss(self.train_cfg.augmix.layer_list, batch_size)
+
+            # domain generalization in the fpn layer
+            # if train_cfg.wandb.log.features_list = [], pass
+            for key, pred in self.features.items():
+                dict_kwargs = dict()
+                if "loss" in self.neck.train_cfg:
+                    neck_train_cfg_loss = self.neck.train_cfg["loss"]
+                    for key, value in neck_train_cfg_loss:
+                        dict_kwargs[key] = value
+                    loss_, p_dist = fpn_loss(pred[0], **dict_kwargs)
+                    losses[f"fpn_loss.{key}"] = loss_
+
             loss, log_vars = self._parse_losses(losses)
-            for name, value in log_vars.items():
-                wandb.log({name: np.mean(value)})
-            loss += jsd_loss
-            log_vars['jsd_loss'] = jsd_loss.item()
+
+            # wandb
+            if 'wandb' in self.train_cfg:
+                if 'log' in self.train_cfg.wandb:
+                    if 'features_list' in self.train_cfg.wandb.log:
+                        for layer_name in self.train_cfg.wandb.log.features_list:
+                            self.wandb_features[layer_name] = self.features[layer_name]
+                    if 'vars' in self.train_cfg.wandb.log:
+                        if 'log_vars' in self.train_cfg.wandb.log.vars:
+                            for name, value in log_vars.items():
+                                self.wandb_features[name] = np.mean(value)
 
         else:
+            # settings
+            self.wandb_data = data
+
             losses = self(**data)
+
             loss, log_vars = self._parse_losses(losses)
-            for name, value in log_vars.items():
-                wandb.log({name: np.mean(value)})
+
+            # wandb
+            if 'wandb' in self.train_cfg:
+                if 'log' in self.train_cfg.wandb:
+                    if 'features_list' in self.train_cfg.wandb.log:
+                        for layer_name in self.train_cfg.wandb.log.features_list:
+                            self.wandb_features[layer_name] = self.features[layer_name]
+                    if 'vars' in self.train_cfg.wandb.log:
+                        if 'log_vars' in self.train_cfg.wandb.log.vars:
+                            for name, value in log_vars.items():
+                                self.wandb_features[name] = np.mean(value)
 
         outputs = dict(
             loss=loss, log_vars=log_vars, num_samples=len(data['img_metas']))

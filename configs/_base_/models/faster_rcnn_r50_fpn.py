@@ -92,7 +92,11 @@ model = dict(
                 neg_pos_ub=-1,
                 add_gt_as_proposals=True),
             pos_weight=-1,
-            debug=False)),
+            debug=False),
+        wandb=dict(
+            layer_list=[]
+        ),
+    ),
     test_cfg=dict(
         rpn=dict(
             nms_pre=1000,

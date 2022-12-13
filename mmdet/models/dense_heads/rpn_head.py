@@ -1,5 +1,6 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import copy
+import math
 
 import torch
 import torch.nn as nn
@@ -9,7 +10,6 @@ from mmcv.ops import batched_nms
 
 from ..builder import HEADS
 from .anchor_head import AnchorHead
-
 
 @HEADS.register_module()
 class RPNHead(AnchorHead):

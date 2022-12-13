@@ -25,6 +25,7 @@ class EvalHook(BaseEvalHook):
 
     def __init__(self, *args, dynamic_intervals=None, **kwargs):
         super(EvalHook, self).__init__(*args, **kwargs)
+        self.latest_results = None
 
         self.use_dynamic_intervals = dynamic_intervals is not None
         if self.use_dynamic_intervals:
@@ -54,6 +55,7 @@ class EvalHook(BaseEvalHook):
 
         from mmdet.apis import single_gpu_test
         results = single_gpu_test(runner.model, self.dataloader, show=False)
+        self.latest_results = results
         runner.log_buffer.output['eval_iter_num'] = len(self.dataloader)
         key_score = self.evaluate(runner, results)
         if self.save_best:
@@ -67,6 +69,7 @@ class DistEvalHook(BaseDistEvalHook):
 
     def __init__(self, *args, dynamic_intervals=None, **kwargs):
         super(DistEvalHook, self).__init__(*args, **kwargs)
+        self.latest_results = None
 
         self.use_dynamic_intervals = dynamic_intervals is not None
         if self.use_dynamic_intervals:
@@ -117,6 +120,7 @@ class DistEvalHook(BaseDistEvalHook):
             self.dataloader,
             tmpdir=tmpdir,
             gpu_collect=self.gpu_collect)
+        self.latest_results = results
         if runner.rank == 0:
             print('\n')
             runner.log_buffer.output['eval_iter_num'] = len(self.dataloader)

@@ -23,6 +23,8 @@ from .cross_entropy_loss_augmix import (CrossEntropyLossAugMix, binary_cross_ent
                                  cross_entropy_augmix, mask_cross_entropy_augmix)
 from .smooth_l1_loss_augmix import smooth_l1_loss_augmix, l1_loss_augmix, SmoothL1LossAugMix, L1LossAugMix
 
+from .ai28 import *
+
 __all__ = [
     'accuracy', 'Accuracy', 'cross_entropy', 'binary_cross_entropy',
     'mask_cross_entropy', 'CrossEntropyLoss', 'sigmoid_focal_loss',
@@ -34,5 +36,5 @@ __all__ = [
     'GaussianFocalLoss', 'QualityFocalLoss', 'DistributionFocalLoss',
     'VarifocalLoss', 'KnowledgeDistillationKLDivLoss', 'SeesawLoss', 'DiceLoss',
     'CrossEntropyLossAugMix', 'binary_cross_entropy_augmix', 'cross_entropy_augmix', 'mask_cross_entropy_augmix',
-    'smooth_l1_loss_augmix', 'l1_loss_augmix', 'SmoothL1LossAugMix', 'L1LossAugMix'
+    'smooth_l1_loss_augmix', 'l1_loss_augmix', 'SmoothL1LossAugMix', 'L1LossAugMix',
 ]

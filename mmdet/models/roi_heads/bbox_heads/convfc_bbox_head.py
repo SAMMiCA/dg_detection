@@ -192,6 +192,8 @@ class ConvFCBBoxHead(BBoxHead):
         for fc in self.reg_fcs:
             x_reg = self.relu(fc(x_reg))
 
+        self.cls_feats = x_cls # self = {Shared2FCBBoxHead}
+
         cls_score = self.fc_cls(x_cls) if self.with_cls else None
         bbox_pred = self.fc_reg(x_reg) if self.with_reg else None
         return cls_score, bbox_pred

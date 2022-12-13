@@ -8,6 +8,7 @@ import time
 import mmcv
 import torch
 import torch.distributed as dist
+import torch.nn.functional as F
 from mmcv.image import tensor2imgs
 from mmcv.runner import get_dist_info
 
@@ -26,7 +27,6 @@ def single_gpu_test(model,
     for i, data in enumerate(data_loader):
         with torch.no_grad():
             result = model(return_loss=False, rescale=True, **data)
-
         batch_size = len(result)
         if show or out_dir:
             if batch_size == 1 and isinstance(data['img'][0], torch.Tensor):

@@ -73,7 +73,8 @@ class FPN(BaseModule):
                  act_cfg=None,
                  upsample_cfg=dict(mode='nearest'),
                  init_cfg=dict(
-                     type='Xavier', layer='Conv2d', distribution='uniform')):
+                     type='Xavier', layer='Conv2d', distribution='uniform'),
+                 **kwargs):
         super(FPN, self).__init__(init_cfg)
         assert isinstance(in_channels, list)
         self.in_channels = in_channels
@@ -84,6 +85,7 @@ class FPN(BaseModule):
         self.no_norm_on_lateral = no_norm_on_lateral
         self.fp16_enabled = False
         self.upsample_cfg = upsample_cfg.copy()
+        self.train_cfg = kwargs
 
         if end_level == -1:
             self.backbone_end_level = self.num_ins

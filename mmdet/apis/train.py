@@ -1,7 +1,6 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import random
 import warnings
-import os # added by dshong
 
 import numpy as np
 import torch
@@ -15,8 +14,6 @@ from mmdet.core import DistEvalHook, EvalHook
 from mmdet.datasets import (build_dataloader, build_dataset,
                             replace_ImageToTensor)
 from mmdet.utils import find_latest_checkpoint, get_root_logger
-
-import wandb
 
 
 def init_random_seed(seed=None, device='cuda'):
@@ -210,12 +207,4 @@ def train_detector(model,
     elif cfg.load_from:
         runner.load_checkpoint(cfg.load_from)
 
-    wandb.init(project="AI28", entity="hong-dasol", reinit=True,
-               config={ 'config': cfg.filename,    # If you want to visualize data with grouping, use 'config'.
-                        'rpn_head.loss_cls': cfg.model.rpn_head.loss_cls,
-                        'rpn_head.loss_bbox': cfg.model.rpn_head.loss_bbox,
-                        'roi_head.bbox_head.loss_cls': cfg.model.roi_head.bbox_head.loss_cls,
-                        'roi_head.bbox_head.loss_bbox': cfg.model.roi_head.bbox_head.loss_bbox,
-                        'augmix.layer_list': cfg.model.train_cfg.augmix,
-                        'work_dir': cfg.work_dir})
     runner.run(data_loaders, cfg.workflow)

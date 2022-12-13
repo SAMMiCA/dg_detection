@@ -1,7 +1,7 @@
 """ Parsing the result from text to dictionary.
 
 Example:
-    python parse_txt2dict.py ${RESULT_FILE_PATH}
+    python parse_txt2dict.py ${test_robustness_result.txt} ${config_file.py}
 Functions:
     get_dictionary(file_path) returns the following dictionary:
         {
@@ -164,19 +164,52 @@ def get_dictionary(file_path):
                     words = re.split('[=,|,\[,\],]', file.readline().replace(' ', '').replace('\n', ''))
     return dictionary
 
+import mmcv
+from mmcv import Config
+
+def print_config_information(file_path):
+    def print_dict(dict, name):
+        print(f'  - {name}: (', end='')
+        for key, value in dict.items():
+            print(f'{key}={value}, ', end='')
+        print(f')')
+    cfg = Config.fromfile(file_path)
+
+    ''' Model'''
+    model = cfg.model
+    print(f'=== config information ===')
+    print(f'[model]')
+    print_dict(model.rpn_head.loss_cls, 'rpn_cls')
+    print_dict(model.rpn_head.loss_bbox, 'rpn_bbox')
+    print_dict(model.roi_head.bbox_head.loss_cls, 'roi_cls')
+    print_dict(model.roi_head.bbox_head.loss_bbox, 'roi_bbox')
+
+    print(f'[data]')
+    data = cfg.data
+    print(f'  - samples_per_gpu={data.samples_per_gpu}, workers_per_gpu={data.workers_per_gpu}')
+    train_pipeline = data.train.dataset.pipeline
+    for i in range(len(train_pipeline)):
+        if train_pipeline[i].type == 'AugMix':
+            print_dict(train_pipeline[i], f'data.train.dataset.pipeline[{i}]')
+
+    print(f'[runtime]')
+    print_dict(cfg.evaluation, 'evaluation')
+    print_dict(cfg.optimizer, 'optimizer')
+    print(f'==========================')
 
 def main():
-    file_path = sys.argv[1]
-    if len(sys.argv) != 2:
+    txt_file_path = sys.argv[1]
+    config_file_path = sys.argv[2]
+    if len(sys.argv) < 2:
         print("Insufficient arguments")
         sys.exit()
-    print('file path : ' + file_path)
+    print('txt file path : ' + txt_file_path)
+    print('config file path : ' + config_file_path)
 
-    dictionary = get_dictionary(file_path)
+    dictionary = get_dictionary(txt_file_path)
     minimal_dictionary = get_minimal_dictionary(dictionary)
     for key in minimal_dictionary.keys():
         print('key:', key, ' value:', minimal_dictionary[key] * 100)
-
 
 if __name__ == '__main__':
     main()

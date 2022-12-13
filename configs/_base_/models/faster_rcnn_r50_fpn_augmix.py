@@ -29,11 +29,9 @@ model = dict(
             type='DeltaXYWHBBoxCoder',
             target_means=[.0, .0, .0, .0],
             target_stds=[1.0, 1.0, 1.0, 1.0]),
-        # edited by dshong from here.
         loss_cls=dict(
             type='CrossEntropyLossAugMix', use_sigmoid=True, loss_weight=1.0),
         loss_bbox=dict(type='L1LossAugMix', loss_weight=1.0)),
-        # edited by dshong to here.
     roi_head=dict(
         type='StandardRoIHead',
         bbox_roi_extractor=dict(

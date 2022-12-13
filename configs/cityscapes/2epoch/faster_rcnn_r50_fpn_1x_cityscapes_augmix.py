@@ -1,8 +1,8 @@
 _base_ = [
     # '../_base_/models/faster_rcnn_r50_fpn.py',
-    '../_base_/models/faster_rcnn_r50_fpn_augmix_jsdfpn.py',
-    '../_base_/datasets/cityscapes_detection_augmix.py',
-    '../_base_/default_runtime.py'
+    '/ws/external/configs/_base_/models/faster_rcnn_r50_fpn_augmix.py',
+    '/ws/external/configs/_base_/datasets/cityscapes_detection_augmix.py',
+    '/ws/external/configs/_base_/default_runtime.py'
 ]
 model = dict(
     backbone=dict(init_cfg=None),
@@ -26,15 +26,31 @@ model = dict(
 optimizer = dict(type='SGD', lr=0.01, momentum=0.9, weight_decay=0.0001)
 optimizer_config = dict(grad_clip=None)
 # learning policy
+runner = dict(
+    type='EpochBasedRunner', max_epochs=2)  # actual epoch = 8 * 8 = 64
 lr_config = dict(
     policy='step',
     warmup='linear',
     warmup_iters=500,
     warmup_ratio=0.001,
     # [7] yields higher performance than [6]
-    step=[7])
-runner = dict(
-    type='EpochBasedRunner', max_epochs=8)  # actual epoch = 8 * 8 = 64
-log_config = dict(interval=100)
+    step=[1])
+log_config = dict(interval=100,
+                  hooks=[
+                      dict(type='TextLoggerHook'),
+                      dict(type='WandbLogger',
+                           wandb_init_kwargs={'project': "AI28", 'entity': "kaist-url-ai28",
+                                              'name': f"augmix_rpn.none.none_roi.none.none_e2",
+                                              'config': {
+                                                  # parameters
+                                                  'epoch': runner['max_epochs'],
+                                              }},
+                           interval=500,
+                           log_checkpoint=True,
+                           log_checkpoint_metadata=True,
+                           num_eval_images=5),
+                  ]
+                  )
+
 # For better, more stable performance initialize from COCO
 load_from = 'https://download.openmmlab.com/mmdetection/v2.0/faster_rcnn/faster_rcnn_r50_fpn_1x_coco/faster_rcnn_r50_fpn_1x_coco_20200130-047c8118.pth'  # noqa
