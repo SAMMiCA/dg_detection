@@ -1,7 +1,5 @@
 # DGDet: Domain Generalized Detection
 
----
-
 ## Introduction
 
 DGDet is a method for improving performance in an out-of-distribution (OOD) environment while maintaining detection performance in an in-distribution environment.
