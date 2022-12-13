@@ -2,30 +2,6 @@
 
 ---
 
-<div align="center">
-  <img src="resources/mmdet-logo.png" width="600"/>
-
-
-[![PyPI](https://img.shields.io/pypi/v/mmdet)](https://pypi.org/project/mmdet)
-[![docs](https://img.shields.io/badge/docs-latest-blue)](https://mmdetection.readthedocs.io/en/latest/)
-[![badge](https://github.com/open-mmlab/mmdetection/workflows/build/badge.svg)](https://github.com/open-mmlab/mmdetection/actions)
-[![codecov](https://codecov.io/gh/open-mmlab/mmdetection/branch/master/graph/badge.svg)](https://codecov.io/gh/open-mmlab/mmdetection)
-[![license](https://img.shields.io/github/license/open-mmlab/mmdetection.svg)](https://github.com/open-mmlab/mmdetection/blob/master/LICENSE)
-[![open issues](https://isitmaintained.com/badge/open/open-mmlab/mmdetection.svg)](https://github.com/open-mmlab/mmdetection/issues)
-
-
-  <img src="https://user-images.githubusercontent.com/12907710/137271636-56ba1cd2-b110-4812-8221-b4c120320aa9.png"/>
-
-
-[📘Documentation](https://mmdetection.readthedocs.io/en/v2.20.0/) |
-[🛠️Installation](https://mmdetection.readthedocs.io/en/v2.20.0/get_started.html) |
-[👀Model Zoo](https://mmdetection.readthedocs.io/en/v2.20.0/model_zoo.html) |
-[🆕Update News](https://mmdetection.readthedocs.io/en/v2.20.0/changelog.html) |
-[🚀Ongoing Projects](https://github.com/open-mmlab/mmdetection/projects) |
-[🤔Reporting Issues](https://github.com/open-mmlab/mmdetection/issues/new/choose)
-
-</div>
-
 ## Introduction
 
 DGDet is a method for improving performance in an out-of-distribution (OOD) environment while maintaining detection performance in an in-distribution environment.
