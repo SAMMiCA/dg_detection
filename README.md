@@ -43,7 +43,7 @@ To use WandB, please complete the installation through `pip install wandb` and l
 
 The running settings are included in the configuration file. 
 The configuration files are located in the `configs` folder.
-You can train your model by passing keyword arguments to `train.py` as show below.
+You can train your model by passing keyword arguments to `train.py` as shown below.
 
 * **base** (8epochs)
   ```shell
@@ -78,11 +78,12 @@ The model can be tested in the same way as below.
 
 Results on CityScapes with Faster-RCNN:
 
-|           | Detector    | Arch     | RPN Loss                           | RoI Loss                                 | Clean mAP(%) | Corruption mPC(%) |
-|-----------|-------------|----------|------------------------------------|------------------------------------------|--------------|-------------------|
-| Base      | Faster-RCNN | ResNet50 | CrossEntropy + L1loss              | CrossEntropy + SmoothL1loss              | 40.6         | 11.0              |
-| w/ AugMix | Faster-RCNN | ResNet50 | CrossEntropy + L1loss              | CrossEntropy + SmoothL1loss              | 42.8         | 16.0              |
-| DGDet     | Faster-RCNN | ResNet50 | CrossEntropyPlus(jsdv1.3) + L1loss | CrossEntropyPlus(jsdv1.3) + SmoothL1loss | 40.2         | 20.9              |
+|           | Detector    | Arch     | RPN Loss                           | RoI Loss                                 | Lambda weight      | Clean mAP(%) | Corruption mPC(%) |
+|-----------|-------------|----------|------------------------------------|------------------------------------------|--------------------|--------------|-------------------|
+| Base      | Faster-RCNN | ResNet50 | CrossEntropy + L1loss              | CrossEntropy + SmoothL1loss              | -                  | 40.6         | 11.0              |
+| w/ AugMix | Faster-RCNN | ResNet50 | CrossEntropy + L1loss              | CrossEntropy + SmoothL1loss              | -                  | 42.8         | 16.0              |
+| DGDet     | Faster-RCNN | ResNet50 | CrossEntropyPlus(jsdv1.3) + L1loss | CrossEntropyPlus(jsdv1.3) + SmoothL1loss | 0.1(RPN), 100(RoI) | 40.2         | 20.9              |
+| DGDet     | Faster-RCNN | ResNet50 | CrossEntropyPlus(jsdv1.3) + L1loss | CrossEntropyPlus(jsdv1.3) + SmoothL1loss | 0.1(RPN), 10(RoI)  | 43.0         | 20.0              |
 
 ## Citation
 
